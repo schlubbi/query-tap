@@ -125,7 +125,7 @@ int uprobe_dispatch_command(struct pt_regs *ctx) {
 
     // COM_DATA is a union; for COM_QUERY the first field is a char* (query).
     const void *com_data_ptr = (const void *)PT_REGS_PARM2(ctx);
-    const char *query_ptr = NULL;
+    const char *query_ptr = 0;
 
     bpf_probe_read_user(&query_ptr, sizeof(query_ptr), com_data_ptr);
     if (!query_ptr) {
