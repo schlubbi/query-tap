@@ -12,11 +12,10 @@ linters:
     - unused
     - gosimple
     - ineffassign
-
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  errcheck:
-    check-type-assertions: true
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    errcheck:
+      check-type-assertions: true
