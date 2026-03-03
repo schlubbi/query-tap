@@ -4,6 +4,7 @@ package ebpf
 
 import (
 	"context"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,9 +22,46 @@ type Probe struct {
 	logger    *slog.Logger
 }
 
+// dispatchCommandSymbol is the C++ mangled name of dispatch_command in mysqld.
+// MySQL 8.x: _Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command
+// We search for it dynamically since the exact mangling can vary.
+const dispatchCommandSymbol = "_Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command"
+
+// findDispatchCommandSymbol searches for the dispatch_command symbol in the binary.
+// It tries the C++ mangled name first, then falls back to the plain C name.
+func findDispatchCommandSymbol(binaryPath string) (string, error) {
+	f, err := elf.Open(binaryPath)
+	if err != nil {
+		return "", fmt.Errorf("opening ELF: %w", err)
+	}
+	defer f.Close()
+
+	// Check dynamic symbols first (.dynsym), then regular symbols (.symtab)
+	for _, getter := range []func() ([]elf.Symbol, error){f.DynamicSymbols, f.Symbols} {
+		syms, err := getter()
+		if err != nil {
+			continue
+		}
+		for _, s := range syms {
+			// Match the full mangled name or the plain name
+			if s.Name == dispatchCommandSymbol || s.Name == "dispatch_command" {
+				return s.Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("symbol dispatch_command (or mangled variant) not found in %s", binaryPath)
+}
+
 // NewProbe loads BPF objects and attaches uprobes to the mysqld binary at
 // binaryPath. The caller must call Close when done.
 func NewProbe(binaryPath string, logger *slog.Logger) (*Probe, error) {
+	symbol, err := findDispatchCommandSymbol(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("finding symbol: %w", err)
+	}
+	logger.Info("found dispatch_command symbol", "symbol", symbol)
+
 	var objs querytapObjects
 	if err := loadQuerytapObjects(&objs, nil); err != nil {
 		return nil, fmt.Errorf("loading BPF objects: %w", err)
@@ -35,13 +73,13 @@ func NewProbe(binaryPath string, logger *slog.Logger) (*Probe, error) {
 		return nil, fmt.Errorf("opening executable %q: %w", binaryPath, err)
 	}
 
-	up, err := ex.Uprobe("dispatch_command", objs.UprobeDispatchCommand, nil)
+	up, err := ex.Uprobe(symbol, objs.UprobeDispatchCommand, nil)
 	if err != nil {
 		objs.Close()
 		return nil, fmt.Errorf("attaching uprobe: %w", err)
 	}
 
-	uret, err := ex.Uretprobe("dispatch_command", objs.UretprobeDispatchCommand, nil)
+	uret, err := ex.Uretprobe(symbol, objs.UretprobeDispatchCommand, nil)
 	if err != nil {
 		up.Close()
 		objs.Close()
@@ -58,7 +96,7 @@ func NewProbe(binaryPath string, logger *slog.Logger) (*Probe, error) {
 
 	logger.Info("BPF probes attached",
 		"binary", binaryPath,
-		"symbol", "dispatch_command",
+		"symbol", symbol,
 	)
 
 	return &Probe{
