@@ -1,9 +1,42 @@
 //go:build ignore
 
+// QueryTap BPF program — uprobe/uretprobe on mysqld dispatch_command.
+//
+// Uses self-contained type definitions (no system vmlinux.h dependency)
+// so the program compiles on any Linux with clang, without needing
+// kernel headers or bpftool-generated vmlinux.h.
+
 #include "vmlinux_types.h"
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
+
+// BPF helper definitions — inlined to avoid system header conflicts.
+// These are stable kernel ABI.
+
+static void *(*bpf_map_lookup_elem)(void *map, const void *key) = (void *)1;
+static long (*bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *)2;
+static long (*bpf_map_delete_elem)(void *map, const void *key) = (void *)3;
+static __u64 (*bpf_ktime_get_ns)(void) = (void *)5;
+static __u64 (*bpf_get_current_pid_tgid)(void) = (void *)14;
+static long (*bpf_probe_read_user)(void *dst, __u32 size, const void *unsafe_ptr) = (void *)112;
+static long (*bpf_probe_read_user_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *)114;
+static void *(*bpf_ringbuf_reserve)(void *ringbuf, __u64 size, __u64 flags) = (void *)131;
+static void (*bpf_ringbuf_submit)(void *data, __u64 flags) = (void *)132;
+static long (*bpf_ringbuf_output)(void *ringbuf, void *data, __u64 size, __u64 flags) = (void *)130;
+
+// SEC and map macros
+#define SEC(name) __attribute__((section(name), used))
+#define __uint(name, val) int (*name)[val]
+#define __type(name, val) typeof(val) *name
+
+// PT_REGS parameter access (x86_64)
+#if defined(__TARGET_ARCH_x86) || defined(__x86_64__)
+#define PT_REGS_PARM1(x) ((x)->di)
+#define PT_REGS_PARM2(x) ((x)->si)
+#define PT_REGS_PARM3(x) ((x)->dx)
+#elif defined(__TARGET_ARCH_arm64) || defined(__aarch64__)
+#define PT_REGS_PARM1(x) ((x)->regs[0])
+#define PT_REGS_PARM2(x) ((x)->regs[1])
+#define PT_REGS_PARM3(x) ((x)->regs[2])
+#endif
 
 #define MAX_QUERY_LEN 4096
 #define EVENT_TYPE_QUERY 1
