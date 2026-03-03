@@ -7,6 +7,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/cilium/ebpf v0.20.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/percona/go-mysql v0.0.0-20251202083530-b3e1c16efc74

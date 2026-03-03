@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestRootCmdDefaultPrintsTUINotImplemented(t *testing.T) {
+func TestRootCmdDefaultPrintsRequiresLinux(t *testing.T) {
 	cmd := newRootCmd()
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -17,11 +17,8 @@ func TestRootCmdDefaultPrintsTUINotImplemented(t *testing.T) {
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "TUI mode not yet implemented") {
-		t.Errorf("expected TUI not-implemented message, got %q", got)
-	}
-	if !strings.Contains(got, "--stream") {
-		t.Errorf("expected hint to use --stream, got %q", got)
+	if !strings.Contains(got, "requires Linux") {
+		t.Errorf("expected Linux requirement message, got %q", got)
 	}
 }
 
@@ -76,15 +73,13 @@ func TestRootCmdStreamModeNoError(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetArgs([]string{"--stream", "--format=json"})
 
-	// Cancel immediately via context so we don't block on signal wait.
-	// The command should set up without errors and print startup.
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("--stream --format=json returned error: %v", err)
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "querytap") {
-		t.Errorf("expected startup message containing 'querytap', got %q", got)
+	if !strings.Contains(got, "requires Linux") {
+		t.Errorf("expected Linux requirement message, got %q", got)
 	}
 }
 
@@ -99,8 +94,8 @@ func TestRootCmdStreamModeTextFormat(t *testing.T) {
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "querytap") {
-		t.Errorf("expected startup message containing 'querytap', got %q", got)
+	if !strings.Contains(got, "requires Linux") {
+		t.Errorf("expected Linux requirement message, got %q", got)
 	}
 }
 

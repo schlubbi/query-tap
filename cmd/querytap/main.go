@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 
@@ -81,6 +82,7 @@ func runRoot(cmd *cobra.Command) error {
 	maxFingerprints, _ := cmd.Flags().GetInt("max-fingerprints")
 	commentParserName, _ := cmd.Flags().GetString("comment-parser")
 	filterPattern, _ := cmd.Flags().GetString("filter")
+	verbose, _ := cmd.Flags().GetBool("verbose")
 
 	// Validate and compile filter regex if provided.
 	if filterPattern != "" {
@@ -99,20 +101,25 @@ func runRoot(cmd *cobra.Command) error {
 		}
 	}
 
-	if !streamMode {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "TUI mode not yet implemented, use --stream")
-		return nil
+	// Build logger.
+	logLevel := slog.LevelInfo
+	if verbose {
+		logLevel = slog.LevelDebug
 	}
+	logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), &slog.HandlerOptions{
+		Level: logLevel,
+	}))
 
 	// Build pipeline components.
 	fp := fingerprint.New(maxFingerprints)
-	_ = aggregator.New(fp, parser)
-	_ = stream.New(cmd.OutOrStdout(), format)
+	agg := aggregator.New(fp, parser)
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-		"querytap %s — waiting for BPF probe (not yet implemented)\n", version)
+	var sw *stream.Writer
+	if streamMode {
+		sw = stream.New(cmd.OutOrStdout(), format)
+	}
 
-	return nil
+	return runProbe(cmd, agg, sw, logger)
 }
 
 func main() {
