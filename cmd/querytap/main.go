@@ -4,7 +4,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
+	"github.com/schlubbi/query-tap/internal/aggregator"
+	"github.com/schlubbi/query-tap/internal/comment"
+	"github.com/schlubbi/query-tap/internal/fingerprint"
+	"github.com/schlubbi/query-tap/internal/stream"
 	"github.com/spf13/cobra"
 )
 
@@ -21,11 +26,7 @@ and aggregated with per-fingerprint latency metrics (count, p50, p99, max).
 
 Output is available as a live TUI dashboard or a streaming JSON/text feed.
 Requires Linux kernel ≥5.8 and root or CAP_BPF+CAP_PERFMON.`,
-		Version: version,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "querytap %s\n", version)
-			return nil
-		},
+		Version:      version,
 		SilenceUsage: true,
 	}
 
@@ -67,7 +68,51 @@ Requires Linux kernel ≥5.8 and root or CAP_BPF+CAP_PERFMON.`,
 	// Debugging
 	f.BoolP("verbose", "v", false, "Enable verbose/debug logging")
 
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		return runRoot(cmd)
+	}
+
 	return cmd
+}
+
+func runRoot(cmd *cobra.Command) error {
+	streamMode, _ := cmd.Flags().GetBool("stream")
+	format, _ := cmd.Flags().GetString("format")
+	maxFingerprints, _ := cmd.Flags().GetInt("max-fingerprints")
+	commentParserName, _ := cmd.Flags().GetString("comment-parser")
+	filterPattern, _ := cmd.Flags().GetString("filter")
+
+	// Validate and compile filter regex if provided.
+	if filterPattern != "" {
+		if _, err := regexp.Compile(filterPattern); err != nil {
+			return fmt.Errorf("invalid --filter regex: %w", err)
+		}
+	}
+
+	// Look up comment parser if specified.
+	var parser comment.CommentParser
+	if commentParserName != "" {
+		var err error
+		parser, err = comment.Get(commentParserName)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !streamMode {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "TUI mode not yet implemented, use --stream")
+		return nil
+	}
+
+	// Build pipeline components.
+	fp := fingerprint.New(maxFingerprints)
+	_ = aggregator.New(fp, parser)
+	_ = stream.New(cmd.OutOrStdout(), format)
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+		"querytap %s — waiting for BPF probe (not yet implemented)\n", version)
+
+	return nil
 }
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestRootCmdPrintsVersion(t *testing.T) {
+func TestRootCmdDefaultPrintsTUINotImplemented(t *testing.T) {
 	cmd := newRootCmd()
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -17,8 +17,11 @@ func TestRootCmdPrintsVersion(t *testing.T) {
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "querytap dev") {
-		t.Errorf("expected output to contain 'querytap dev', got %q", got)
+	if !strings.Contains(got, "TUI mode not yet implemented") {
+		t.Errorf("expected TUI not-implemented message, got %q", got)
+	}
+	if !strings.Contains(got, "--stream") {
+		t.Errorf("expected hint to use --stream, got %q", got)
 	}
 }
 
@@ -64,5 +67,117 @@ func TestRootCmdHasAllFlags(t *testing.T) {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Errorf("expected flag --%s to be registered", name)
 		}
+	}
+}
+
+func TestRootCmdStreamModeNoError(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--stream", "--format=json"})
+
+	// Cancel immediately via context so we don't block on signal wait.
+	// The command should set up without errors and print startup.
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--stream --format=json returned error: %v", err)
+	}
+
+	got := buf.String()
+	if !strings.Contains(got, "querytap") {
+		t.Errorf("expected startup message containing 'querytap', got %q", got)
+	}
+}
+
+func TestRootCmdStreamModeTextFormat(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--stream", "--format=text"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--stream --format=text returned error: %v", err)
+	}
+
+	got := buf.String()
+	if !strings.Contains(got, "querytap") {
+		t.Errorf("expected startup message containing 'querytap', got %q", got)
+	}
+}
+
+func TestRootCmdCommentParserRails(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--stream", "--comment-parser=rails"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--comment-parser=rails returned error: %v", err)
+	}
+}
+
+func TestRootCmdCommentParserMarginalia(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--stream", "--comment-parser=marginalia"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--comment-parser=marginalia returned error: %v", err)
+	}
+}
+
+func TestRootCmdCommentParserUnknownReturnsError(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--stream", "--comment-parser=unknown"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown comment parser, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown comment parser") {
+		t.Errorf("expected 'unknown comment parser' in error, got %q", err.Error())
+	}
+}
+
+func TestRootCmdUnknownFlagReturnsError(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--nonexistent-flag"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown flag, got nil")
+	}
+}
+
+func TestRootCmdFilterFlagAccepted(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--stream", "--filter=SELECT.*users"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--filter flag returned error: %v", err)
+	}
+}
+
+func TestRootCmdFilterInvalidRegexReturnsError(t *testing.T) {
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--stream", "--filter=[invalid"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid regex filter, got nil")
+	}
+	if !strings.Contains(err.Error(), "filter") {
+		t.Errorf("expected 'filter' in error message, got %q", err.Error())
 	}
 }
