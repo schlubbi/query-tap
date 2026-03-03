@@ -23,7 +23,7 @@ Output is available as a live TUI dashboard or a streaming JSON/text feed.
 Requires Linux kernel ≥5.8 and root or CAP_BPF+CAP_PERFMON.`,
 		Version: version,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(cmd.OutOrStdout(), "querytap %s\n", version)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "querytap %s\n", version)
 			return nil
 		},
 		SilenceUsage: true,
