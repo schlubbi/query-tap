@@ -67,6 +67,14 @@ jobs:
       - name: Generate BPF code
         run: make generate
 
+      - name: Verify generated files are up to date
+        run: |
+          git diff --exit-code || {
+            echo "::error::Generated BPF files are out of date. Run 'make generate' on Linux and commit the results."
+            git diff --stat
+            exit 1
+          }
+
       - name: Build with BPF
         run: make build
 
@@ -77,7 +85,6 @@ jobs:
             -e MYSQL_DATABASE=testdb \
             -p 3306:3306 \
             mysql:8.0
-          # Wait for MySQL to be ready
           for i in $(seq 1 30); do
             if docker exec mysql-test mysqladmin ping -h localhost --silent 2>/dev/null; then
               echo "MySQL is ready"
@@ -92,6 +99,14 @@ jobs:
         env:
           MYSQL_DSN: "root:test@tcp(127.0.0.1:3306)/testdb"
           MYSQL_CONTAINER: mysql-test
+
+      - name: Upload generated BPF files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-bpf
+          path: internal/ebpf/*_bpfe*
+          if-no-files-found: ignore
 
       - name: Cleanup
         if: always()
