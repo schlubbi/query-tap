@@ -1,8 +1,10 @@
+version: "2"
+
 run:
   timeout: 5m
-  go: "1.23"
 
 linters:
+  default: none
   enable:
     - govet
     - errcheck
@@ -19,8 +21,3 @@ linters-settings:
       - fieldalignment
   errcheck:
     check-type-assertions: true
-
-issues:
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
