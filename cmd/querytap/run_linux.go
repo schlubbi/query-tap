@@ -11,11 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/schlubbi/query-tap/internal/aggregator"
 	"github.com/schlubbi/query-tap/internal/detect"
 	"github.com/schlubbi/query-tap/internal/ebpf"
 	"github.com/schlubbi/query-tap/internal/pipeline"
 	"github.com/schlubbi/query-tap/internal/stream"
+	"github.com/schlubbi/query-tap/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -69,7 +71,26 @@ func runProbe(cmd *cobra.Command, agg *aggregator.Aggregator, sw *stream.Writer,
 	}
 
 	// TUI mode — pipeline feeds aggregator, TUI polls snapshots.
-	return pipe.Run(ctx, events)
+	topN, _ := cmd.Flags().GetInt("top")
+	interval, _ := cmd.Flags().GetInt("interval")
+
+	go func() {
+		_ = pipe.Run(ctx, events)
+	}()
+
+	model := tui.New(agg, topN, time.Duration(interval)*time.Second)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+
+	// Cancel probe context when TUI exits.
+	go func() {
+		<-ctx.Done()
+		p.Quit()
+	}()
+
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("TUI: %w", err)
+	}
+	return nil
 }
 
 func runStreamPipeline(ctx context.Context, pipe *pipeline.Pipeline, events <-chan ebpf.Event, agg *aggregator.Aggregator, sw *stream.Writer) error {

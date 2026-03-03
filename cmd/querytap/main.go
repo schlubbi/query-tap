@@ -57,7 +57,7 @@ Requires Linux kernel ≥5.8 and root or CAP_BPF+CAP_PERFMON.`,
 	f.String("filter", "", "Regex filter applied to raw SQL text")
 
 	// Comment parsing
-	f.String("comment-parser", "", "Comment parser: marginalia, sqlcommenter, or custom")
+	f.String("comment-parser", "marginalia", "Comment parser: marginalia, rails")
 
 	// TUI options
 	f.Int("top", 20, "Number of fingerprints to display in TUI mode")
