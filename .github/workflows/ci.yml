@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Build binary
+        run: make build
+
+      - name: Verify binary runs
+        run: ./bin/querytap --version
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  integration:
+    name: Integration Tests (Linux + BPF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install BPF build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) bpftool
+
+      - name: Check kernel version
+        run: uname -r
+
+      - name: Check BPF support
+        run: |
+          ls /sys/kernel/btf/vmlinux && echo "BTF available" || echo "No BTF"
+          sudo bpftool feature probe kernel 2>/dev/null | head -20 || true
+
+      - name: Generate BPF code
+        run: make generate
+
+      - name: Build with BPF
+        run: make build
+
+      - name: Start MySQL for integration tests
+        run: |
+          docker run -d --name mysql-test \
+            -e MYSQL_ROOT_PASSWORD=test \
+            -e MYSQL_DATABASE=testdb \
+            -p 3306:3306 \
+            mysql:8.0
+          # Wait for MySQL to be ready
+          for i in $(seq 1 30); do
+            if docker exec mysql-test mysqladmin ping -h localhost --silent 2>/dev/null; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run integration tests
+        run: sudo -E make test-integration
+        env:
+          MYSQL_DSN: "root:test@tcp(127.0.0.1:3306)/testdb"
+          MYSQL_CONTAINER: mysql-test
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f mysql-test 2>/dev/null || true
