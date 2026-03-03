@@ -110,6 +110,14 @@ func runRoot(cmd *cobra.Command) error {
 		Level: logLevel,
 	}))
 
+	logger.Debug("configuration",
+		"stream", streamMode,
+		"format", format,
+		"max_fingerprints", maxFingerprints,
+		"comment_parser", commentParserName,
+		"filter", filterPattern,
+	)
+
 	// Build pipeline components.
 	fp := fingerprint.New(maxFingerprints)
 	agg := aggregator.New(fp, parser)
