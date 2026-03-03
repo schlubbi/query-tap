@@ -179,4 +179,4 @@ int uretprobe_dispatch_command(struct pt_regs *ctx) {
     return 0;
 }
 
-char __license[] SEC("license") = "MIT";
+char __license[] SEC("license") = "GPL";
