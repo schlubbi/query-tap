@@ -1,0 +1,32 @@
+# Binaries
+bin/
+querytap
+*.o
+
+# BPF generated objects
+*_bpfel.go
+*_bpfeb.go
+*_bpfel.o
+*_bpfeb.o
+*.bpf.o
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
